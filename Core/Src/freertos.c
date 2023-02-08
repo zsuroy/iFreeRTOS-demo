@@ -50,6 +50,7 @@
 osThreadId defaultTaskHandle;
 osThreadId LEDHandle;
 osThreadId LED_CoHandle;
+osThreadId KEYHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -59,6 +60,7 @@ osThreadId LED_CoHandle;
 void StartDefaultTask(void const * argument);
 void LedTask(void const * argument);
 void LedTaskCo(void const * argument);
+void KeyTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -111,11 +113,15 @@ void MX_FREERTOS_Init(void) {
 
   /* definition and creation of LED */
   osThreadDef(LED, LedTask, osPriorityNormal, 0, 128);
-  LEDHandle = osThreadCreate(osThread(LED), NULL);
+  LEDHandle = osThreadCreate(osThread(LED), (void *)"Task #1");
 
   /* definition and creation of LED_Co */
   osThreadDef(LED_Co, LedTaskCo, osPriorityNormal, 0, 128);
-  LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
+  LED_CoHandle = osThreadCreate(osThread(LED_Co), (void *)"Task #2");
+
+  /* definition and creation of KEY */
+  osThreadDef(KEY, KeyTask, osPriorityNormal, 0, 128);
+  KEYHandle = osThreadCreate(osThread(KEY), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -155,14 +161,16 @@ void LedTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-//	  vTaskDelay(500);
-//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-//	  vTaskDelay(500);
-	  printf("Task1\r\n");
-	  HAL_Delay(200); // 模拟任务占用时间
-	  vTaskDelay(500); //相对任务延时
-//    osDelay(1);
+
+	  printf("Task1: ");
+	  printf(argument);
+	  printf("\r\n");
+	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+	  osDelay(200);
+	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+	  osDelay(800);
+
+//	  printf("Task1: %s\r\n", (char *)argument); // 这句可能会导致输出异常
   }
   /* USER CODE END LedTask */
 }
@@ -184,14 +192,77 @@ void LedTaskCo(void const * argument)
   for(;;)
   {
 
-	  printf("Task2\r\n");
-	  HAL_Delay(200); // 模拟任务占用时间
-	  vTaskDelayUntil(&xLastWakeTime,500); //绝对延时500ms
+	  printf("Task2: ");
+	  printf(argument);
+	  printf("\r\n");
+
+//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+//	  osDelay(200);
 //	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-//	  vTaskDelay(500);
-//    osDelay(1);
+//	  osDelay(800);
+//	  osDelay(200); // 模拟任务占用时间
+	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
   }
   /* USER CODE END LedTaskCo */
+}
+
+/* USER CODE BEGIN Header_KeyTask */
+/**
+* @brief Function implementing the KEY thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_KeyTask */
+void KeyTask(void const * argument)
+{
+  /* USER CODE BEGIN KeyTask */
+  static uint8_t flag=1; //挂起标志
+  /* Infinite loop */
+  for(;;)
+  {
+	  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+	  {
+		  osDelay(10);
+		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+		  {
+			  osDelay(500); //长按
+			  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+			  {
+				  // 长按
+				  if(flag == 1)
+				  {
+					  printf("Task2 Hang\r\n");
+					  vTaskSuspend(LED_CoHandle);
+					  flag=0;
+				  } else {
+					  printf("Task2 Resume\r\n");
+					  vTaskResume(LED_CoHandle);
+					  flag=1;
+				  }
+
+			  }
+			  else {
+				  // 短按
+				  if(LEDHandle == NULL)
+				  {
+					  printf("Task1 Create\r\n");
+					  osThreadDef(LED, LedTask, osPriorityNormal, 0, 128);
+					  LEDHandle = osThreadCreate(osThread(LED), (void *)"New Task #1");
+					  printf("OK\r\n");
+				  } else {
+					  printf("Task1 Delete\r\n");
+					  vTaskDelete(LEDHandle);
+					  LEDHandle = NULL;
+				  }
+
+			  }
+			  while(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == GPIO_PIN_RESET); //检测松开: 最里层嵌套使用
+		  }
+		  while(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == GPIO_PIN_RESET); //检测松开
+	  }
+    osDelay(1);
+  }
+  /* USER CODE END KeyTask */
 }
 
 /* Private application code --------------------------------------------------*/
