@@ -53,6 +53,7 @@ osThreadId LED_CoHandle;
 osThreadId KEYHandle;
 osMessageQId myQueue01Handle;
 osSemaphoreId myBinarySem01Handle;
+osSemaphoreId myCountingSem01Handle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -100,6 +101,10 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of myBinarySem01 */
   osSemaphoreDef(myBinarySem01);
   myBinarySem01Handle = osSemaphoreCreate(osSemaphore(myBinarySem01), 1);
+
+  /* definition and creation of myCountingSem01 */
+  osSemaphoreDef(myCountingSem01);
+  myCountingSem01Handle = osSemaphoreCreate(osSemaphore(myCountingSem01), 2);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -190,7 +195,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note 二值信号量(Take): V1.0.3
+* @note 计数信号量(Take): V1.0.4
 * @param argument: Not used
 * @retval None
 */
@@ -198,8 +203,7 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-  BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
-
+  portLONG count; //计数
     TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
@@ -210,11 +214,10 @@ void LedTaskCo(void const * argument)
 	  printf(argument);
 	  printf("\r\n");
 
-	  //获取二值信号量 xSemaphore,没获取到则一直等待
-	  xReturn = xSemaphoreTake(myBinarySem01Handle,portMAX_DELAY); //二值信号量句柄  等待时间
-	  if(pdTRUE == xReturn)
-		  printf("myBinarySem01Handle Got!\n\n");
-	  else printf("myBinarySem01Handle Failed!\r\n");
+	  //获取计数信号量 xSemaphoreTake
+
+	  count = uxSemaphoreGetCount(myCountingSem01Handle); // 获取计数信号量数值，模拟车辆数目
+	  printf("Cars Got %ld!\n\n", count);
 
 	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
   }
@@ -224,7 +227,7 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note 消息队列发送(入队)，按键按下入队
+* @note 计数信号量(Give): V1.0.4
 * @param argument: Not used
 * @retval None
 */
@@ -241,10 +244,15 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-			  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+//			  xReturn = xSemaphoreGive( myCountingSem01Handle );//给出二值信号量: 模拟停车(需要改计数信号量初始化中的初值为0)
+//			  if( xReturn == pdTRUE )
+//				  printf("Car stop!\r\n");
+//			  else printf("No Space!\r\n");
+
+			  xReturn = xSemaphoreTake(myCountingSem01Handle, 0);//给出二值信号量: 模拟开走
 			  if( xReturn == pdTRUE )
-				  printf("myBinarySem01Handle Released!\r\n");
-			  else printf("myBinarySem01Handle Released failed!\r\n");
+				  printf("Car left!\r\n");
+			  else printf("No cars!\r\n");
 		  }
 		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 	  }

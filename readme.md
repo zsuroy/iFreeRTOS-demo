@@ -93,9 +93,44 @@ void LedTaskCo(void const * argument)
 
 2. Add
 
-手动创建: `SemaphoreHandle_t BinarySem_Handle =NULL;`
+手动创建:
+
+```c
+SemaphoreHandle_t BinarySem_Handle =NULL;
+/* 创建 BinarySem */
+BinarySem_Handle = xSemaphoreCreateBinary();
+```
 
 + 二值信号量
-  + 上机会自动Take 1次信号，由于CubeMX初始化二值信号量为1
+  + 上机会自动Take 1次信号，由于CubeMX初始化二值信号量为最大值1
   + 按键按下Give信号
   + Task2定时1s负责Take信号
+
+
+### V1.0.4 2023.2.10
+
+
++ 修复BUG
+  + V1.0.3 手动创建二值信号量的错误
+
++ 计数信号量
+
+> 模拟车库停车
+
+创建信号量: STM32CubeMX创建默认为最大值; 手动创建为0
+1. FreeRTOS -> Config Parameters -> USE_COUNTING_SEMAPHORES [enable]
+2. FreeRTOS -> Timers and Semaphores -> Counting Semaphores
+3. Add
+
+
+或手动创建: 
+
+```c
+SemaphoreHandle_t CountSem_Handle =NULL;
+/* 创建 CountSem */
+CountSem_Handle = xSemaphoreCreateCounting(5,5); // MAX_Value, INIT_Value
+```
+
++ 任务: 创建计数信号量大小为2 
+  + Task3: (按键)可以将车停入车库/开出车库
+  + Task2: 串口每1秒显示一下车库内车辆数据
