@@ -71,5 +71,15 @@ void LedTaskCo(void const * argument)
 
 解决： `printf("Task2: %s\n\n", (char *)argument); //传入NULL时会大量输出乱码`
 
+正解： 在任务中增加互斥量进行 printf 函数的控制
 
 
+### V1.0.2 2023.2.10
+
++ 队列的基本使用
+  + 消息队列(使用CubeMX创建)
+  + 按键发送任务: 设置等待时间为0
+  + 一个接收任务: 等待时间为最大(portMAX_DELAY)
+
++ 修复BUG
+  + 修改之前版本的按键检测为LED
