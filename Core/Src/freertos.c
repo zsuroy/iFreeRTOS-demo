@@ -52,6 +52,7 @@ osThreadId LEDHandle;
 osThreadId LED_CoHandle;
 osThreadId KEYHandle;
 osMessageQId myQueue01Handle;
+osSemaphoreId myBinarySem01Handle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -94,6 +95,11 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* definition and creation of myBinarySem01 */
+  osSemaphoreDef(myBinarySem01);
+  myBinarySem01Handle = osSemaphoreCreate(osSemaphore(myBinarySem01), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -184,7 +190,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note 消息队列读取(出队)
+* @note 二值信号量(Take): V1.0.3
 * @param argument: Not used
 * @retval None
 */
@@ -192,10 +198,8 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-  BaseType_t xStatus; //接收消息队列状态
-  uint32_t Buf;
+  BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
 
-  // V1.0.0
     TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
@@ -206,18 +210,12 @@ void LedTaskCo(void const * argument)
 	  printf(argument);
 	  printf("\r\n");
 
-	  // 消息队列读取(出队)
-	  printf("Now Buf(Out): %ld\r\n", Buf);
-//	  xStatus = xQueueReceive(myQueue01Handle, &Buf, 0); //接收任务等待时间: 0, 不会阻塞；出队会读取并删除元素
-//	  xStatus = xQueueReceive(myQueue01Handle, &Buf, portMAX_DELAY); //接收任务等待时间: 阻塞 portMAX_DELAY，队空时不会运行
-	  xStatus = xQueuePeek(myQueue01Handle, &Buf, 0); // 偷窥队列: 读取但不删除元素
+	  //获取二值信号量 xSemaphore,没获取到则一直等待
+	  xReturn = xSemaphoreTake(myBinarySem01Handle,portMAX_DELAY); //二值信号量句柄  等待时间
+	  if(pdTRUE == xReturn)
+		  printf("myBinarySem01Handle Got!\n\n");
+	  else printf("myBinarySem01Handle Failed!\r\n");
 
-	  if(xStatus == pdPASS)
-	  {
-		 printf("Read Buf: %ld Ok!\r\n", Buf);
-	  } else {
-		 printf("Queue Out Failed!\r\n");
-	  }
 	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
   }
   /* USER CODE END LedTaskCo */
@@ -234,8 +232,7 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
-  BaseType_t xStatus; //发送
-  uint32_t Buf=2023;
+  BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
   /* Infinite loop */
   for(;;)
   {
@@ -244,14 +241,10 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-			  printf("Now Buf(In): %ld\r\n", Buf);
-			  xStatus = xQueueSendToBack(myQueue01Handle, &Buf, 0); //入队
-			  if(xStatus == pdPASS)
-			  {
-				  printf("Write Buf: %ld Ok!\r\n", Buf);
-			  } else {
-				 printf("Queue In Failed!\r\n");
-			  }
+			  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+			  if( xReturn == pdTRUE )
+				  printf("myBinarySem01Handle Released!\r\n");
+			  else printf("myBinarySem01Handle Released failed!\r\n");
 		  }
 		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 	  }

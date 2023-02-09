@@ -83,3 +83,19 @@ void LedTaskCo(void const * argument)
 
 + 修复BUG
   + 修改之前版本的按键检测为LED
+
+
+### V1.0.3 2023.2.10
+
+创建信号量: STM32CubeMX创建默认为1; 手动创建为0
+
+1. FreeRTOS -> Timers and Semaphores -> Binary Semaphores
+
+2. Add
+
+手动创建: `SemaphoreHandle_t BinarySem_Handle =NULL;`
+
++ 二值信号量
+  + 上机会自动Take 1次信号，由于CubeMX初始化二值信号量为1
+  + 按键按下Give信号
+  + Task2定时1s负责Take信号
