@@ -59,6 +59,8 @@ osSemaphoreId myCountingSem01Handle;
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
+EventGroupHandle_t Event_Handle =NULL; //事件组句柄
+
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -125,7 +127,8 @@ void MX_FREERTOS_Init(void) {
   myQueue01Handle = osMessageCreate(osMessageQ(myQueue01), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  /* 创建 Event_Handle */
+  Event_Handle = xEventGroupCreate();
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -134,11 +137,11 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of LED */
-  osThreadDef(LED, LedTask, osPriorityBelowNormal, 0, 128);
+  osThreadDef(LED, LedTask, osPriorityNormal, 0, 128);
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
   /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityAboveNormal, 0, 128);
+  osThreadDef(LED_Co, LedTaskCo, osPriorityNormal, 0, 128);
   LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
@@ -156,7 +159,7 @@ void MX_FREERTOS_Init(void) {
   * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
-  * @note Task2 -> 模拟优先级翻转 - 中优先级任务: V1.0.6
+  * @note nop: V1.0.7
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
@@ -165,8 +168,8 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  printf("MidPriority_Task Running\n");
-	  vTaskDelay(500);
+	  printf("Program Running\n");
+	  vTaskDelay(5000);
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -175,7 +178,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note Task3 -> 模拟优先级翻转 - 低优先级任务:  V1.0.6
+* @note Task1 -> 检测事件组条件满足(发射火箭):  V1.0.7
 * @param argument: Not used
 * @retval None
 */
@@ -183,8 +186,7 @@ void StartDefaultTask(void const * argument)
 void LedTask(void const * argument)
 {
   /* USER CODE BEGIN LedTask */
-	BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
-	long i;
+	BaseType_t r_event = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
   /* Infinite loop */
   for(;;)
   {
@@ -192,23 +194,19 @@ void LedTask(void const * argument)
 //	  printf("Task1: ");
 //	  printf(argument);
 //	  printf("\r\n");
-//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-//	  osDelay(200);
-//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-//	  osDelay(800);
 
-	  printf("LowPriority_Task Take Sem\n");
-	  //获取互斥量 xSemaphore,没获取到则一直等待
-	  xReturn = xSemaphoreTake(myMutex01Handle,/* 互斥量句柄 */
-	  portMAX_DELAY); /* 等待时间 */
-	  if( xReturn == pdTRUE )
-		  printf("LowPriority_Task Running\n\n");
-	  for(i=0;i<2000000;i++)//模拟低优先级任务占用信号量
+	  r_event = xEventGroupWaitBits(Event_Handle, /* 事件对象句柄 */
+		  0x0011,/* 接收线程感兴趣的事: 事件组寄存器值 */
+		  pdTRUE, /* 退出时清除事件位 */
+		  pdTRUE, /* 满足感兴趣的所有事件 */
+		  portMAX_DELAY);/* 指定超时事件,一直等 */
+	  if(r_event)
 	  {
-		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//发起任务调度
+	    	printf ( "Rocket Fire!\n");
+	  	  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//发起任务调度
 	  }
-	  printf("LowPriority_Task Give Sem!\r\n");
-	  xReturn = xSemaphoreGive( myMutex01Handle );//给出互斥量
+	  else printf ("Event failed!\n");
+
 	  vTaskDelay(500);
 
   }
@@ -218,7 +216,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note Task1 -> 模拟优先级翻转 - 高优先级: V1.0.6
+* @note Task2 -> 模拟按键事件(倒计时): V1.0.7
 * @param argument: Not used
 * @retval None
 */
@@ -226,7 +224,7 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-	BaseType_t xReturn;
+	static long i=10;//sec
 	TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
@@ -236,18 +234,11 @@ void LedTaskCo(void const * argument)
 //	  printf("Task2: ");
 //	  printf(argument);
 //	  printf("\r\n");
-
-
-	  printf("HighPriority_Task Take Sem\n");
-	  //获取互斥量 xSemaphore,没获取到则一直等待
-	  xReturn = xSemaphoreTake(myMutex01Handle,/* 互斥量句柄 */
-	  portMAX_DELAY); /* 等待时间 */
-	  if(pdTRUE == xReturn)
-		  printf("HighPriority_Task Running\n");
-
-	  xReturn = xSemaphoreGive( myMutex01Handle );//给出互斥量
-//	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
-	  vTaskDelay(500);
+	  if(i==1){
+		  printf("Ready!\r\n");
+		  xEventGroupSetBits(Event_Handle, 0x0001); //触发事件:第1位置1
+	  } else printf("CountDown: %ld\r\n", i--);
+	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时10s
   }
   /* USER CODE END LedTaskCo */
 }
@@ -255,7 +246,7 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note 计数信号量(Give): V1.0.4
+* @note Task3 -> 按键按下(模拟点火): V1.0.7
 * @param argument: Not used
 * @retval None
 */
@@ -263,7 +254,6 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
-  BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
   /* Infinite loop */
   for(;;)
   {
@@ -272,15 +262,8 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-//			  xReturn = xSemaphoreGive( myCountingSem01Handle );//给出二值信号量: 模拟停车(需要改计数信号量初始化中的初值为0)
-//			  if( xReturn == pdTRUE )
-//				  printf("Car stop!\r\n");
-//			  else printf("No Space!\r\n");
-
-			  xReturn = xSemaphoreTake(myCountingSem01Handle, 0);//给出二值信号量: 模拟开走
-			  if( xReturn == pdTRUE )
-				  printf("Car left!\r\n");
-			  else printf("No cars!\r\n");
+			  xEventGroupSetBits(Event_Handle, 0x0010); //触发事件:第5位置1
+			  printf("Fire Ready!\r\n");
 		  }
 		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 	  }
