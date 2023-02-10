@@ -52,6 +52,7 @@ osThreadId LEDHandle;
 osThreadId LED_CoHandle;
 osThreadId KEYHandle;
 osMessageQId myQueue01Handle;
+osMutexId myMutex01Handle;
 osSemaphoreId myBinarySem01Handle;
 osSemaphoreId myCountingSem01Handle;
 
@@ -92,6 +93,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
+  /* Create the mutex(es) */
+  /* definition and creation of myMutex01 */
+  osMutexDef(myMutex01);
+  myMutex01Handle = osMutexCreate(osMutex(myMutex01));
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -124,11 +129,6 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-
-  /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityAboveNormal, 0, 128);
-  LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
-
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
@@ -137,6 +137,9 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(LED, LedTask, osPriorityBelowNormal, 0, 128);
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
+  /* definition and creation of LED_Co */
+  osThreadDef(LED_Co, LedTaskCo, osPriorityAboveNormal, 0, 128);
+  LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
   osThreadDef(KEY, KeyTask, osPriorityNormal, 0, 128);
@@ -153,7 +156,7 @@ void MX_FREERTOS_Init(void) {
   * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
-  * @note Task2 -> 模拟优先级翻转 - 中优先级任务: V1.0.5
+  * @note Task2 -> 模拟优先级翻转 - 中优先级任务: V1.0.6
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
@@ -172,7 +175,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note Task3 -> 模拟优先级翻转 - 低优先级任务:  V1.0.5
+* @note Task3 -> 模拟优先级翻转 - 低优先级任务:  V1.0.6
 * @param argument: Not used
 * @retval None
 */
@@ -195,8 +198,8 @@ void LedTask(void const * argument)
 //	  osDelay(800);
 
 	  printf("LowPriority_Task Take Sem\n");
-	  //获取二值信号量 xSemaphore,没获取到则一直等待
-	  xReturn = xSemaphoreTake(myBinarySem01Handle,/* 二值信号量句柄 */
+	  //获取互斥量 xSemaphore,没获取到则一直等待
+	  xReturn = xSemaphoreTake(myMutex01Handle,/* 互斥量句柄 */
 	  portMAX_DELAY); /* 等待时间 */
 	  if( xReturn == pdTRUE )
 		  printf("LowPriority_Task Running\n\n");
@@ -205,7 +208,7 @@ void LedTask(void const * argument)
 		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//发起任务调度
 	  }
 	  printf("LowPriority_Task Give Sem!\r\n");
-	  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+	  xReturn = xSemaphoreGive( myMutex01Handle );//给出互斥量
 	  vTaskDelay(500);
 
   }
@@ -215,7 +218,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note Task1 -> 模拟优先级翻转 - 高优先级: V1.0.5
+* @note Task1 -> 模拟优先级翻转 - 高优先级: V1.0.6
 * @param argument: Not used
 * @retval None
 */
@@ -236,13 +239,13 @@ void LedTaskCo(void const * argument)
 
 
 	  printf("HighPriority_Task Take Sem\n");
-	  //获取二值信号量 xSemaphore,没获取到则一直等待
-	  xReturn = xSemaphoreTake(myBinarySem01Handle,/* 二值信号量句柄 */
+	  //获取互斥量 xSemaphore,没获取到则一直等待
+	  xReturn = xSemaphoreTake(myMutex01Handle,/* 互斥量句柄 */
 	  portMAX_DELAY); /* 等待时间 */
 	  if(pdTRUE == xReturn)
 		  printf("HighPriority_Task Running\n");
 
-	  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+	  xReturn = xSemaphoreGive( myMutex01Handle );//给出互斥量
 //	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
 	  vTaskDelay(500);
   }
