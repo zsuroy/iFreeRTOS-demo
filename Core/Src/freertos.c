@@ -124,17 +124,19 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
+
+  /* definition and creation of LED_Co */
+  osThreadDef(LED_Co, LedTaskCo, osPriorityAboveNormal, 0, 128);
+  LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
+
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of LED */
-  osThreadDef(LED, LedTask, osPriorityNormal, 0, 128);
+  osThreadDef(LED, LedTask, osPriorityBelowNormal, 0, 128);
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
-  /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityLow, 0, 128);
-  LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
   osThreadDef(KEY, KeyTask, osPriorityNormal, 0, 128);
@@ -151,6 +153,7 @@ void MX_FREERTOS_Init(void) {
   * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
+  * @note Task2 -> 模拟优先级翻转 - 中优先级任务: V1.0.5
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
@@ -159,6 +162,8 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+	  printf("MidPriority_Task Running\n");
+	  vTaskDelay(500);
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -167,7 +172,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note LED闪烁: 点亮程序
+* @note Task3 -> 模拟优先级翻转 - 低优先级任务:  V1.0.5
 * @param argument: Not used
 * @retval None
 */
@@ -175,19 +180,34 @@ void StartDefaultTask(void const * argument)
 void LedTask(void const * argument)
 {
   /* USER CODE BEGIN LedTask */
+	BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
+	long i;
   /* Infinite loop */
   for(;;)
   {
 
-	  printf("Task1: ");
-	  printf(argument);
-	  printf("\r\n");
-	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-	  osDelay(200);
-	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-	  osDelay(800);
+//	  printf("Task1: ");
+//	  printf(argument);
+//	  printf("\r\n");
+//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+//	  osDelay(200);
+//	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+//	  osDelay(800);
 
-//	  printf("Task1: %s\r\n", (char *)argument); // 这句可能会导致输出异常
+	  printf("LowPriority_Task Take Sem\n");
+	  //获取二值信号量 xSemaphore,没获取到则一直等待
+	  xReturn = xSemaphoreTake(myBinarySem01Handle,/* 二值信号量句柄 */
+	  portMAX_DELAY); /* 等待时间 */
+	  if( xReturn == pdTRUE )
+		  printf("LowPriority_Task Running\n\n");
+	  for(i=0;i<2000000;i++)//模拟低优先级任务占用信号量
+	  {
+		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//发起任务调度
+	  }
+	  printf("LowPriority_Task Give Sem!\r\n");
+	  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+	  vTaskDelay(500);
+
   }
   /* USER CODE END LedTask */
 }
@@ -195,7 +215,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note 计数信号量(Take): V1.0.4
+* @note Task1 -> 模拟优先级翻转 - 高优先级: V1.0.5
 * @param argument: Not used
 * @retval None
 */
@@ -203,23 +223,28 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-  portLONG count; //计数
-    TickType_t xLastWakeTime;
+	BaseType_t xReturn;
+	TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
   for(;;)
   {
 
-	  printf("Task2: ");
-	  printf(argument);
-	  printf("\r\n");
+//	  printf("Task2: ");
+//	  printf(argument);
+//	  printf("\r\n");
 
-	  //获取计数信号量 xSemaphoreTake
 
-	  count = uxSemaphoreGetCount(myCountingSem01Handle); // 获取计数信号量数值，模拟车辆数目
-	  printf("Cars Got %ld!\n\n", count);
+	  printf("HighPriority_Task Take Sem\n");
+	  //获取二值信号量 xSemaphore,没获取到则一直等待
+	  xReturn = xSemaphoreTake(myBinarySem01Handle,/* 二值信号量句柄 */
+	  portMAX_DELAY); /* 等待时间 */
+	  if(pdTRUE == xReturn)
+		  printf("HighPriority_Task Running\n");
 
-	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
+	  xReturn = xSemaphoreGive( myBinarySem01Handle );//给出二值信号量
+//	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时500ms
+	  vTaskDelay(500);
   }
   /* USER CODE END LedTaskCo */
 }
