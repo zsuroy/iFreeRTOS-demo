@@ -141,7 +141,7 @@ void MX_FREERTOS_Init(void) {
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
   /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityBelowNormal, 0, 128);
+  osThreadDef(LED_Co, LedTaskCo, osPriorityNormal, 0, 128);
   LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
@@ -178,7 +178,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note Task1 -> 任务通知.模拟二值信号量.接收任务1:  V1.0.8
+* @note Task1 -> 任务通知.模拟事件组.检测发射:  V1.0.10
 * @param argument: Not used
 * @retval None
 */
@@ -186,13 +186,29 @@ void StartDefaultTask(void const * argument)
 void LedTask(void const * argument)
 {
   /* USER CODE BEGIN LedTask */
+	BaseType_t xReturn;
+	uint32_t r_event = 0; /* 定义一个事件接收变量 */
+	uint32_t last_event = 0;/* 定义一个保存事件的变量 */
   /* Infinite loop */
   for(;;)
   {
 
 	  //获取任务通知 ,没获取到则一直等待
-	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-	  printf("Receive1_Task Got!\n\n");
+	  xReturn = xTaskNotifyWait(0x0, //进入函数的时候不清除任务
+			   0xffffffff, //退出函数的时候清除所有的bitR
+			   &r_event, //保存任务通知值
+			   portMAX_DELAY); //阻塞时间
+
+	  if( pdTRUE == xReturn )
+	  {
+		  last_event |= r_event;
+		  if(last_event == (0x01|0x10))
+		  {
+			  last_event=0;
+			  printf ( "Start Fire!\r\n");
+			  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		  }else last_event = r_event;
+	  }
 	  vTaskDelay(20);
 
   }
@@ -202,7 +218,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note Task2 -> 任务通知.模拟二值信号量.接收任务2:  V1.0.8
+* @note Task2 -> 任务通知.模拟事件组.倒计时:  V1.0.10
 * @param argument: Not used
 * @retval None
 */
@@ -210,32 +226,20 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-	uint32_t take_num = pdTRUE;
+	uint32_t n=10;
 	TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
   for(;;)
   {
 
-//	  printf("Task2: ");
-//	  printf(argument);
-//	  printf("\r\n");
-
-	  //模拟二值信号量: 获取任务通知 ,没获取到则一直等待
-//	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-//	  printf("Receive2_Task Got!\n\n");
-	  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
-	  	  {
-	  		  osDelay(10);
-	  		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
-	  		  {
-	  //模拟计数信号量: 获取任务通知 ,没获取到则不等待
-	  take_num = ulTaskNotifyTake(pdFALSE,0);
-	  if(take_num > 0)printf("Now cars: %ld\r\n", take_num-1);
-	  		  }
-			  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
-
-	  	  }
+	  n--;
+	  if(n==1){
+		  printf("Task2 Ready...\r\n");
+		  xTaskNotify(LEDHandle, 0x0001, eSetBits); /* 触发一个事件 1 */
+		  n=10;
+	  }
+	  else printf("CountDown: %ld\r\n", n);
 
 	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时10s
   }
@@ -245,7 +249,7 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note Task3 -> 按键按下(模拟点火): V1.0.7
+* @note Task3 -> 任务通知.模拟事件组.点火: V1.0.10
 * @param argument: Not used
 * @retval None
 */
@@ -253,7 +257,6 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
-	BaseType_t xReturn;
   /* Infinite loop */
   for(;;)
   {
@@ -262,17 +265,12 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-			  osDelay(500);
-			  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
-			  { //长按停车
-					  xReturn = xTaskNotifyGive(LED_CoHandle);
-					  if( xReturn == pdTRUE )
-					  printf("Receive1_Task_Handle Send!\r\n");
-			  }
-			  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
+
+			  printf("Task3 Ready...\r\n");
+			  xTaskNotify(LEDHandle, 0x0010, eSetBits); /* 触发一个事件 1 */
 
 		  }
-//		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
+		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 	  }
     osDelay(1);
   }
