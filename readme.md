@@ -218,3 +218,14 @@ CountSem_Handle = xSemaphoreCreateCounting(5,5); // MAX_Value, INIT_Value
 00:37:19:330 -> Program Running
 
 ```
+
+
+### V1.0.9 2023.2.12
+
++ 任务: 任务通知模拟计数信号量
+  > 任务通知模拟车库停车
+  + Task2: 模拟计数信号量，按键短按开走车量
+  + Task3(任务优先级最高): 模拟按键释放计数信号量: 长按释放，停车
+
++ 注意: 若任务Task3优先级不高于2会导致异常，原因是会先运行高优先级任务
+

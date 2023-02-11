@@ -141,11 +141,11 @@ void MX_FREERTOS_Init(void) {
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
   /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityNormal, 0, 128);
+  osThreadDef(LED_Co, LedTaskCo, osPriorityBelowNormal, 0, 128);
   LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
-  osThreadDef(KEY, KeyTask, osPriorityBelowNormal, 0, 128);
+  osThreadDef(KEY, KeyTask, osPriorityNormal, 0, 128);
   KEYHandle = osThreadCreate(osThread(KEY), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -210,7 +210,7 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-//	uint32_t take_num = pdTRUE;
+	uint32_t take_num = pdTRUE;
 	TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
@@ -222,12 +222,20 @@ void LedTaskCo(void const * argument)
 //	  printf("\r\n");
 
 	  //模拟二值信号量: 获取任务通知 ,没获取到则一直等待
-	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
-	  printf("Receive2_Task Got!\n\n");
-
+//	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+//	  printf("Receive2_Task Got!\n\n");
+	  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+	  	  {
+	  		  osDelay(10);
+	  		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+	  		  {
 	  //模拟计数信号量: 获取任务通知 ,没获取到则不等待
-//	  take_num = ulTaskNotifyTake(pdFALSE,0);
-//	  if(take_num > 0)printf("Now cars: %ld\r\n", take_num-1);
+	  take_num = ulTaskNotifyTake(pdFALSE,0);
+	  if(take_num > 0)printf("Now cars: %ld\r\n", take_num-1);
+	  		  }
+			  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
+
+	  	  }
 
 	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时10s
   }
@@ -256,15 +264,10 @@ void KeyTask(void const * argument)
 		  {
 			  osDelay(500);
 			  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
-			  { //长按
-					  xReturn = xTaskNotifyGive(LEDHandle);
-					  if( xReturn == pdTRUE )
-					  printf("Receive1_Task_Handle Send!\r\n");
-			  } else {
-				  	  //短按
+			  { //长按停车
 					  xReturn = xTaskNotifyGive(LED_CoHandle);
 					  if( xReturn == pdTRUE )
-					  printf("Receive2_Task_Handle Send!\r\n");
+					  printf("Receive1_Task_Handle Send!\r\n");
 			  }
 			  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 
