@@ -145,7 +145,7 @@ void MX_FREERTOS_Init(void) {
   LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
-  osThreadDef(KEY, KeyTask, osPriorityNormal, 0, 128);
+  osThreadDef(KEY, KeyTask, osPriorityBelowNormal, 0, 128);
   KEYHandle = osThreadCreate(osThread(KEY), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -178,7 +178,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note Task1 -> 检测事件组条件满足(发射火箭):  V1.0.7
+* @note Task1 -> 任务通知.模拟二值信号量.接收任务1:  V1.0.8
 * @param argument: Not used
 * @retval None
 */
@@ -186,28 +186,14 @@ void StartDefaultTask(void const * argument)
 void LedTask(void const * argument)
 {
   /* USER CODE BEGIN LedTask */
-	BaseType_t r_event = pdPASS;/* 定义一个创建信息返回值，默认为 pdPASS */
   /* Infinite loop */
   for(;;)
   {
 
-//	  printf("Task1: ");
-//	  printf(argument);
-//	  printf("\r\n");
-
-	  r_event = xEventGroupWaitBits(Event_Handle, /* 事件对象句柄 */
-		  0x0011,/* 接收线程感兴趣的事: 事件组寄存器值 */
-		  pdTRUE, /* 退出时清除事件位 */
-		  pdTRUE, /* 满足感兴趣的所有事件 */
-		  portMAX_DELAY);/* 指定超时事件,一直等 */
-	  if(r_event)
-	  {
-	    	printf ( "Rocket Fire!\n");
-	  	  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//发起任务调度
-	  }
-	  else printf ("Event failed!\n");
-
-	  vTaskDelay(500);
+	  //获取任务通知 ,没获取到则一直等待
+	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+	  printf("Receive1_Task Got!\n\n");
+	  vTaskDelay(20);
 
   }
   /* USER CODE END LedTask */
@@ -216,7 +202,7 @@ void LedTask(void const * argument)
 /* USER CODE BEGIN Header_LedTaskCo */
 /**
 * @brief Function implementing the LED_Co thread.
-* @note Task2 -> 模拟按键事件(倒计时): V1.0.7
+* @note Task2 -> 任务通知.模拟二值信号量.接收任务2:  V1.0.8
 * @param argument: Not used
 * @retval None
 */
@@ -224,7 +210,7 @@ void LedTask(void const * argument)
 void LedTaskCo(void const * argument)
 {
   /* USER CODE BEGIN LedTaskCo */
-	static long i=10;//sec
+//	uint32_t take_num = pdTRUE;
 	TickType_t xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
@@ -234,10 +220,15 @@ void LedTaskCo(void const * argument)
 //	  printf("Task2: ");
 //	  printf(argument);
 //	  printf("\r\n");
-	  if(i==1){
-		  printf("Ready!\r\n");
-		  xEventGroupSetBits(Event_Handle, 0x0001); //触发事件:第1位置1
-	  } else printf("CountDown: %ld\r\n", i--);
+
+	  //模拟二值信号量: 获取任务通知 ,没获取到则一直等待
+	  ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+	  printf("Receive2_Task Got!\n\n");
+
+	  //模拟计数信号量: 获取任务通知 ,没获取到则不等待
+//	  take_num = ulTaskNotifyTake(pdFALSE,0);
+//	  if(take_num > 0)printf("Now cars: %ld\r\n", take_num-1);
+
 	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时10s
   }
   /* USER CODE END LedTaskCo */
@@ -254,6 +245,7 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
+	BaseType_t xReturn;
   /* Infinite loop */
   for(;;)
   {
@@ -262,10 +254,22 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-			  xEventGroupSetBits(Event_Handle, 0x0010); //触发事件:第5位置1
-			  printf("Fire Ready!\r\n");
+			  osDelay(500);
+			  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
+			  { //长按
+					  xReturn = xTaskNotifyGive(LEDHandle);
+					  if( xReturn == pdTRUE )
+					  printf("Receive1_Task_Handle Send!\r\n");
+			  } else {
+				  	  //短按
+					  xReturn = xTaskNotifyGive(LED_CoHandle);
+					  if( xReturn == pdTRUE )
+					  printf("Receive2_Task_Handle Send!\r\n");
+			  }
+			  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
+
 		  }
-		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
+//		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
 	  }
     osDelay(1);
   }
