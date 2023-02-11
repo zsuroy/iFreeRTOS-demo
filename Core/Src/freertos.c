@@ -178,7 +178,7 @@ void StartDefaultTask(void const * argument)
 /* USER CODE BEGIN Header_LedTask */
 /**
 * @brief Function implementing the LED thread.
-* @note Task1 -> 任务通知.模拟事件组.检测发射:  V1.0.10
+* @note Task1 -> 任务通知.模拟消息队列.接收消息:  V1.0.11
 * @param argument: Not used
 * @retval None
 */
@@ -187,8 +187,7 @@ void LedTask(void const * argument)
 {
   /* USER CODE BEGIN LedTask */
 	BaseType_t xReturn;
-	uint32_t r_event = 0; /* 定义一个事件接收变量 */
-	uint32_t last_event = 0;/* 定义一个保存事件的变量 */
+	uint32_t r_addr; /* 定义一个事件接收变量 */
   /* Infinite loop */
   for(;;)
   {
@@ -196,18 +195,13 @@ void LedTask(void const * argument)
 	  //获取任务通知 ,没获取到则一直等待
 	  xReturn = xTaskNotifyWait(0x0, //进入函数的时候不清除任务
 			   0xffffffff, //退出函数的时候清除所有的bitR
-			   &r_event, //保存任务通知值
-			   portMAX_DELAY); //阻塞时间
+			   &r_addr, //保存任务通知值
+			   0); //阻塞时间, 无限阻塞时需要考虑任务优先级问题
 
 	  if( pdTRUE == xReturn )
 	  {
-		  last_event |= r_event;
-		  if(last_event == (0x01|0x10))
-		  {
-			  last_event=0;
-			  printf ( "Start Fire!\r\n");
-			  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-		  }else last_event = r_event;
+		  printf ( "Receive Task: %s\r\n", (uint8_t *)r_addr); // 邮箱消息
+		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 	  }
 	  vTaskDelay(20);
 
@@ -241,7 +235,7 @@ void LedTaskCo(void const * argument)
 	  }
 	  else printf("CountDown: %ld\r\n", n);
 
-	  vTaskDelayUntil(&xLastWakeTime,1000); //绝对延时10s
+	  vTaskDelayUntil(&xLastWakeTime,100000); //绝对延时10s
   }
   /* USER CODE END LedTaskCo */
 }
@@ -249,7 +243,7 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note Task3 -> 任务通知.模拟事件组.点火: V1.0.10
+* @note Task3 -> 任务通知.模拟队列消息.发送: V1.0.11
 * @param argument: Not used
 * @retval None
 */
@@ -257,6 +251,8 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
+	BaseType_t xReturn;
+	char str[] = "Hi, this is Suroy.\r\n";
   /* Infinite loop */
   for(;;)
   {
@@ -265,9 +261,11 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-
-			  printf("Task3 Ready...\r\n");
-			  xTaskNotify(LEDHandle, 0x0010, eSetBits); /* 触发一个事件 1 */
+			  xReturn = xTaskNotify(LEDHandle, /*任务句柄*/
+						  (uint32_t)&str, //发送的数据，最大为 4 字节
+						  eSetValueWithOverwrite); /*覆盖当前通知, eSetValueWithoutOverwrite 不覆盖*/
+			  if( xReturn == pdPASS )
+			  printf("LEDHandle Send Ok!\r\n");
 
 		  }
 		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开

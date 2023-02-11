@@ -241,3 +241,22 @@ CountSem_Handle = xSemaphoreCreateCounting(5,5); // MAX_Value, INIT_Value
 
 + 注意: 若任务优先级不重要
 
+
+### V1.0.11 2023.2.12
+
++ 任务: 任务通知模拟消息队列
+  > 设置接收消息任务为无限阻塞时需要考虑多任务下优先级问题。
+
+  + Task1: 即时检测接收消息队列并输出
+  + Task3: 模拟按键确认发送消息队列(发出消息地址，以解决最大传输4字节)
+
+
++ 串口日志
+
+```text
+02:10:52:250 -> Program Running
+02:10:53:867 -> LEDHandle Send Ok!
+02:10:53:872 -> Receive Task: Hi, this is Suroy.
+02:10:53:878 -> 
+02:10:54:280 -> Program Running
+```
