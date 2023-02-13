@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -88,8 +89,12 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart1); //重定向printf
+  HAL_TIM_Base_Start_IT(&htim3); // 开启TIM3中断
+  HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -171,6 +176,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
 
+  if (htim->Instance == TIM3) {
+    printf("TIM3\r\n");
+  }
+
+  if (htim->Instance == TIM4) {
+	printf("TIM4\r\n");
+  }
   /* USER CODE END Callback 1 */
 }
 

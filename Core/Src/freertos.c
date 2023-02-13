@@ -274,7 +274,8 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note Task3 -> 定时器.控制定时器开关: V1.0.12
+* @note Task3 -> 中断管理.屏蔽/恢复中断: V1.0.13
+* 优先级低于、等于configMAX_SYSCALL_INTERRUPT_PRIORITY的中断将会被屏蔽
 * @param argument: Not used
 * @retval None
 */
@@ -293,14 +294,14 @@ void KeyTask(void const * argument)
 		  {
 			  if(xPress == pdFALSE)
 			  {
-				 xTimerStart(myTimer01Handle, 100); // 启动定时器1: 发送队列超时100ms
+				  taskENTER_CRITICAL(); //屏蔽中断
+				 printf("TIM NVIC Stop!\r\n");
 				 xPress = pdTRUE;
 			  }
 			  else{
-				  xTimerStop(myTimer01Handle, 100); // 关闭定时器1: 发送队列超时100ms
-				  xTimerStop(myTimer02Handle, 100); // 关闭定时器2
-				  printf("Timers Stop!\r\n");
-				  xPress = pdFALSE;
+				  taskEXIT_CRITICAL(); //允许中断
+				 printf("TIM NVIC Start!\r\n");
+				 xPress = pdFALSE;
 			  }
 
 		  }

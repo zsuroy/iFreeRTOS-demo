@@ -20,7 +20,8 @@
 > 已经移植上机测试过了，直接编译运行即可。  
 > 本文仅记录一下关键步骤，详细移植可以看  
 > [使用STM32CubeIDE 进行 FreeRTOS 手动移植F103系列最小系统](https://suroy.cn/embeded/use-stmcubeide-for-freertos-manual-migration-of-f103-series-minimum-system.html)  
-> [记基于STM32 的 FreeRTOS 学习的移植日志](https://suroy.cn/embeded/record-the-migration-log-of-freertos-learning-based-on-stm32.html)
+> [记基于STM32 的 FreeRTOS 学习的移植日志【一】](https://suroy.cn/embeded/record-the-migration-log-of-freertos-learning-based-on-stm32.html)  
+> [记基于STM32 的 FreeRTOS 学习的移植日志【二】](https://suroy.cn/embeded/record-the-migration-log-of-freertos-learning-based-on-stm32-2.html)
 
 ## 版本日志
 
@@ -262,7 +263,7 @@ CountSem_Handle = xSemaphoreCreateCounting(5,5); // MAX_Value, INIT_Value
 ```
 
 
-### V1.0.12 2023.2.12
+### V1.0.12 2023.2.13
 
 CubeMX配置
 > 使用CubeMX创建默认周期为1，需要自行修改，手动创建不需要更改周期
@@ -274,3 +275,23 @@ CubeMX配置
   + Timer1: 500ms; Timer2: 1000ms
   + 初始化时手动修改周期，修改周期后自动启动
   + 按键按下切换 Timer1 开关 `KeyTask`
+
+
+
+### V1.0.13 2023.2.13
+
+
++ 任务: 中断屏蔽测试
+> 按键按下优先级数值 >= `configMAX_SYSCALL_INTERRUPT_PRIORITY` 的中断将会被屏蔽，再次按下恢复。
+ 
+ 
++ CubeMX配置
+    + 说明 
+      + Tout  = (ARR+1) * (PCS+1) / Tclk
+      + 定时时间(us) = (计数周期+1) * (分频系数+1) / 输入时钟频率(MHz)
+    + TIM3: Internal Clock ->  500ms (APR, 5000-1; PCS, 7200-1)  -> NVIC Settings [enable]
+    + TIM4: Internal Clock ->  1000ms -> NVIC Settings [enable]
+    + NVIC
+        + TIM3 -> Use FreeRTOS functions [Checked] -> 任意设置
+        + TIM4 -> Use FreeRTOS functions [No check] -> 0-5 任意
+	
