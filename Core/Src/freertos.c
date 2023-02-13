@@ -52,6 +52,8 @@ osThreadId LEDHandle;
 osThreadId LED_CoHandle;
 osThreadId KEYHandle;
 osMessageQId myQueue01Handle;
+osTimerId myTimer01Handle;
+osTimerId myTimer02Handle;
 osMutexId myMutex01Handle;
 osSemaphoreId myBinarySem01Handle;
 osSemaphoreId myCountingSem01Handle;
@@ -67,11 +69,16 @@ void StartDefaultTask(void const * argument);
 void LedTask(void const * argument);
 void LedTaskCo(void const * argument);
 void KeyTask(void const * argument);
+void Callback01(void const * argument);
+void Callback02(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
 void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
+
+/* GetTimerTaskMemory prototype (linked to static allocation support) */
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize );
 
 /* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -85,6 +92,19 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
   /* place for user code */
 }
 /* USER CODE END GET_IDLE_TASK_MEMORY */
+
+/* USER CODE BEGIN GET_TIMER_TASK_MEMORY */
+static StaticTask_t xTimerTaskTCBBuffer;
+static StackType_t xTimerStack[configTIMER_TASK_STACK_DEPTH];
+
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize )
+{
+  *ppxTimerTaskTCBBuffer = &xTimerTaskTCBBuffer;
+  *ppxTimerTaskStackBuffer = &xTimerStack[0];
+  *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+  /* place for user code */
+}
+/* USER CODE END GET_TIMER_TASK_MEMORY */
 
 /**
   * @brief  FreeRTOS initialization
@@ -117,8 +137,19 @@ void MX_FREERTOS_Init(void) {
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
+  /* Create the timer(s) */
+  /* definition and creation of myTimer01 */
+  osTimerDef(myTimer01, Callback01);
+  myTimer01Handle = osTimerCreate(osTimer(myTimer01), osTimerPeriodic, NULL);
+
+  /* definition and creation of myTimer02 */
+  osTimerDef(myTimer02, Callback02);
+  myTimer02Handle = osTimerCreate(osTimer(myTimer02), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
+  xTimerChangePeriod(myTimer01Handle, 500, 200); // 修改定时器1周期：500ms, 发送队列等待时间200ms（任填）
+  xTimerChangePeriod(myTimer02Handle, 1000, 200);
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the queue(s) */
@@ -141,7 +172,7 @@ void MX_FREERTOS_Init(void) {
   LEDHandle = osThreadCreate(osThread(LED), NULL);
 
   /* definition and creation of LED_Co */
-  osThreadDef(LED_Co, LedTaskCo, osPriorityNormal, 0, 128);
+  osThreadDef(LED_Co, LedTaskCo, osPriorityLow, 0, 128);
   LED_CoHandle = osThreadCreate(osThread(LED_Co), NULL);
 
   /* definition and creation of KEY */
@@ -243,7 +274,7 @@ void LedTaskCo(void const * argument)
 /* USER CODE BEGIN Header_KeyTask */
 /**
 * @brief Function implementing the KEY thread.
-* @note Task3 -> 任务通知.模拟队列消息.发送: V1.0.11
+* @note Task3 -> 定时器.控制定时器开关: V1.0.12
 * @param argument: Not used
 * @retval None
 */
@@ -251,8 +282,7 @@ void LedTaskCo(void const * argument)
 void KeyTask(void const * argument)
 {
   /* USER CODE BEGIN KeyTask */
-	BaseType_t xReturn;
-	char str[] = "Hi, this is Suroy.\r\n";
+	static BaseType_t xPress = pdFALSE;
   /* Infinite loop */
   for(;;)
   {
@@ -261,11 +291,17 @@ void KeyTask(void const * argument)
 		  osDelay(10);
 		  if(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
 		  {
-			  xReturn = xTaskNotify(LEDHandle, /*任务句柄*/
-						  (uint32_t)&str, //发送的数据，最大为 4 字节
-						  eSetValueWithOverwrite); /*覆盖当前通知, eSetValueWithoutOverwrite 不覆盖*/
-			  if( xReturn == pdPASS )
-			  printf("LEDHandle Send Ok!\r\n");
+			  if(xPress == pdFALSE)
+			  {
+				 xTimerStart(myTimer01Handle, 100); // 启动定时器1: 发送队列超时100ms
+				 xPress = pdTRUE;
+			  }
+			  else{
+				  xTimerStop(myTimer01Handle, 100); // 关闭定时器1: 发送队列超时100ms
+				  xTimerStop(myTimer02Handle, 100); // 关闭定时器2
+				  printf("Timers Stop!\r\n");
+				  xPress = pdFALSE;
+			  }
 
 		  }
 		  while(HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET); //检测松开
@@ -273,6 +309,22 @@ void KeyTask(void const * argument)
     osDelay(1);
   }
   /* USER CODE END KeyTask */
+}
+
+/* Callback01 function */
+void Callback01(void const * argument)
+{
+  /* USER CODE BEGIN Callback01 */
+	printf("Timer1\r\n");
+  /* USER CODE END Callback01 */
+}
+
+/* Callback02 function */
+void Callback02(void const * argument)
+{
+  /* USER CODE BEGIN Callback02 */
+	printf("Timer2\r\n");
+  /* USER CODE END Callback02 */
 }
 
 /* Private application code --------------------------------------------------*/

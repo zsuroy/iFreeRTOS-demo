@@ -260,3 +260,17 @@ CountSem_Handle = xSemaphoreCreateCounting(5,5); // MAX_Value, INIT_Value
 02:10:53:878 -> 
 02:10:54:280 -> Program Running
 ```
+
+
+### V1.0.12 2023.2.12
+
+CubeMX配置
+> 使用CubeMX创建默认周期为1，需要自行修改，手动创建不需要更改周期
++ 开启软件定时器: FreeRTOS -> Config parameters -> Soft Timer definitions -> USE_TIMERS [enable]
++ 开启定时器回调函数: FreeRTOS -> Include parameters -> xTimerPendFunctionCall [enable]
++ Timers and Semaphores -> Add Timer
+
++ 任务: 软件定时器
+  + Timer1: 500ms; Timer2: 1000ms
+  + 初始化时手动修改周期，修改周期后自动启动
+  + 按键按下切换 Timer1 开关 `KeyTask`
